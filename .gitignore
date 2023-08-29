@@ -1,11 +1,16 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+.venv*/
 
 # Editor backup files
 *~
 .*.sw?
 .vscode/
-.venv*/
-.DS_Store
 .idea
+
+# Issues
+.issues
+
+# Other
+.DS_Store

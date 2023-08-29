@@ -10,11 +10,13 @@ import pickle
 ISSUE_FILE = '.issues'
 
 if __name__ == "__main__":
-    with open(ISSUE_FILE,'r') as issues:
+    with open(ISSUE_FILE,'rb') as issues:
         DB = pickle.load(issues)
         for issue in DB.values():
             if not hasattr(issue, 'priority'):
                 issue.priority = 3
-    with open(ISSUE_FILE, 'w') as issues:
+            if not hasattr(issue, 'tags'):
+                issue.tags = []
+    with open(ISSUE_FILE, 'wb') as issues:
         pickle.dump(DB, issues, -1)
         

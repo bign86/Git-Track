@@ -17,6 +17,7 @@ Each bug/issue has a(n)
   by default the current HEAD commit at the time of creation
 * status (open/closed)
 * priority
+* list of tags
 
 Usage:
 ------
@@ -25,10 +26,14 @@ The basic usage is as simple as
 
 1) *optional* make an alias 
 
-alias g-tr="python /path/to/git-track/track.py"
+alias g-tr="python3 /path/to/git-track/track.py"
 
 2) use
 
-g-tr
+g-tr --help
 
 will give you an overview of the commands.
+For each command, there is a separated usage such as in:
+
+g-tr show --help
+
