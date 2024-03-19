@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 import argparse
-from issue_db.issue_db import IssueDB
+from issue_db import *
+from issue_db import VERSION
 
 
 if __name__ == "__main__":
@@ -9,6 +10,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='Git-Track')
     subparsers = parser.add_subparsers(help='sub-commands help')
     parser.set_defaults(func='')
+    parser.add_argument('--version', action='store_true', default=False)
 
     # create the parser for the "add" command
     parser_add = subparsers.add_parser('add', help='add help')
@@ -28,6 +30,8 @@ if __name__ == "__main__":
     parser_edit.add_argument('--prio', nargs=1, type=int, help='change priority')
     parser_edit.add_argument('--add-tag', nargs=1, type=str, help='remove a tag')
     parser_edit.add_argument('--rm-tag', nargs=1, type=str, help='add a tag')
+    parser_edit.add_argument('--attach', nargs=1, type=int, help='add a parent')
+    parser_edit.add_argument('--detach', action='store_true', help='remove the parent')
 
     # create the parser for the "rm" command
     parser_rm = subparsers.add_parser('remove', help='remove help')
@@ -45,8 +49,15 @@ if __name__ == "__main__":
     parser_show.set_defaults(func='show')
     parser_show.add_argument('--all', action='store_true',
                              help='to show all issues', default=False)
+    parser_show.add_argument('--closed', action='store_true',
+                             help='to show closed issues', default=False)
     parser_show.add_argument('--info', nargs=1, type=int,
                              help='show detailed info on id')
+
+    # create the parser for the "tree" command
+    parser_show = subparsers.add_parser('tree', help='tree help')
+    parser_show.set_defaults(func='tree')
+    parser_show.add_argument('id', nargs='?', type=int, help='id issue')
 
     args = parser.parse_known_args()
     ns = args[0]
@@ -55,7 +66,7 @@ if __name__ == "__main__":
 
     if ns.func == 'show':
         issue_id = None if ns.info is None else ns.info[0]
-        ISSUES.show(issue_id, ns.all)
+        ISSUES.show(issue_id, ns.all, ns.closed)
     elif ns.func == 'add':
         ISSUES.add()
     elif ns.func == 'remove':
@@ -66,4 +77,9 @@ if __name__ == "__main__":
         ISSUES.edit(ns.id, ns)
     elif ns.func == 'search':
         ISSUES.search(ns)
+    elif ns.func == 'tree':
+        draw_tree(ISSUES.issue_db, ns.id)
+    else:
+        if ns.version:
+            print(f'Git-Track: {VERSION}')
 

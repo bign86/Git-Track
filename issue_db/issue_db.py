@@ -13,6 +13,7 @@ import sys
 
 ISSUE_FILE = '.issues'
 _EDITORS = ('nano', 'vim', 'vi', 'emacs')
+_HEADERS = ("id", "Date", "Status", "Pr", "Tags", "Comment")
 
 
 def catch_id_err(func):
@@ -86,9 +87,9 @@ class IssueDB(object):
         data = [
             issue.to_list()
             for issue in sorted(self.issue_db.values())[::-1]
-            if issue.status == 'open'
+            if issue.is_open
         ]
-        return tabulate(data, headers=("id", "Date", "Status", "Pr", "Tags", "Comment"))
+        return tabulate(data, headers=_HEADERS)
 
     #
     # Top-level commands
@@ -119,10 +120,17 @@ class IssueDB(object):
     @catch_id_err
     def close(self, issue_id: int, wontfix: bool) -> None:
         """ Close a specific issue. """
-        status = 'wontfix' if wontfix else 'close'
-        self.issue_db[issue_id].closedsha = self._get_head_sha()
-        self.issue_db[issue_id].status = status
-        self._repickle()
+        issue = self.issue_db[issue_id]
+
+        if any(self.issue_db[child].is_open for child in issue.children):
+            print('This issue cannot be closed as there are open children. Close dependent issues first')
+
+        else:
+            status = 'wontfix' if wontfix else 'close'
+            issue.closedsha = self._get_head_sha()
+            issue.status = status
+            issue.is_open = False
+            self._repickle()
 
     @catch_id_err
     def edit(self, issue_id: int, ns) -> None:
@@ -133,12 +141,20 @@ class IssueDB(object):
             self._edit_tag(issue_id, '+', ns.add_tag[0])
         elif ns.rm_tag is not None:
             self._edit_tag(issue_id, '-', ns.rm_tag[0])
+        elif ns.attach is not None:
+            self._edit_parent(issue_id, ns.attach[0])
+        elif ns.detach:
+            self._edit_parent(issue_id, 0)
         else:
             self._edit_msg(issue_id)
 
     @catch_id_err
     def remove(self, issue_id: int) -> None:
         """ Remove a specific issue. """
+        issue = self.issue_db[issue_id]
+        for child in issue.children:
+            self.issue_db[child].parent = issue.parent
+
         del self.issue_db[issue_id]
         self._repickle()
 
@@ -166,18 +182,15 @@ class IssueDB(object):
                 _id = filtered_ids.pop()
                 to_show.append(self.issue_db[_id].to_list())
 
-        print(
-            tabulate(
-                to_show,
-                headers=("id", "Date", "Status", "Pr", "Tags", "Comment")
-            )
-        )
+        print(tabulate(to_show, headers=_HEADERS))
 
     @catch_id_err
-    def show(self, issue_id: int, show_all: bool) -> None:
+    def show(self, issue_id: int, show_all: bool, show_closed: bool) -> None:
         """ To show issues info and lists. """
         if show_all:
             print(self._show_all())
+        elif show_closed:
+            print(self._show_closed())
         elif issue_id is not None:
             self._info(issue_id)
         else:
@@ -193,7 +206,16 @@ class IssueDB(object):
             issue.to_list()
             for issue in sorted(self.issue_db.values())[::-1]
         ]
-        return tabulate(data, headers=("id", "Date", "Status", "Pr", "Tags", "Comment"))
+        return tabulate(data, headers=_HEADERS)
+
+    def _show_closed(self) -> str:
+        """ Prints all closed issues. """
+        data = [
+            issue.to_list()
+            for issue in sorted(self.issue_db.values())[::-1]
+            if not issue.is_open
+        ]
+        return tabulate(data, headers=_HEADERS)
 
     def _repickle(self) -> None:
         """ Rewrite database. """
@@ -247,9 +269,41 @@ class IssueDB(object):
                 .remove(tag)
         self._repickle()
 
+    @catch_id_err
+    def _edit_parent(self, issue_id, parent: int):
+        """ Attach or detach an issue to/from a parent. """
+        issue = self.issue_db[issue_id]
+
+        if issue.parent == parent:
+            return
+
+        elif issue.parent == 0:
+            if parent not in self.issue_db:
+                print(f"{parent}: no such issue!")
+            else:
+                self.issue_db[parent].children.add(issue_id)
+                issue.parent = parent
+                self._repickle()
+
+        elif parent == 0:
+            self.issue_db[issue.parent].children.remove(issue_id)
+            issue.parent = 0
+            self._repickle()
+
+        else:
+            if parent not in self.issue_db:
+                print(f"{parent}: no such issue!")
+            else:
+                self.issue_db[parent].children.add(issue_id)
+                self.issue_db[issue.parent].children.remove(issue_id)
+                issue.parent = parent
+                self._repickle()
+
 
 class Issue(object):
     """ Issue object. """
+
+    _MAX_MSG_L = 80
 
     def __init__(self, my_id, commit_sha, priority, tags, msg):
         self.my_id = my_id
@@ -258,8 +312,11 @@ class Issue(object):
         self.msg = msg
         self.issued = datetime.datetime.now()
         self.status = 'open'
+        self.is_open = True
         self.priority = priority
         self.tags = [tags]
+        self.parent = 0
+        self.children = set()
 
     def __str__(self) -> str:
         return "\t".join(self.to_list())
@@ -267,13 +324,12 @@ class Issue(object):
     def to_list(self) -> list:
         msg = self.msg.split("\n")[0]  # get the first line
         return [
-            "%03i" % self.my_id,
-            self.issued.strftime("%b %d"),
-            # self.commit_sha[:8],
+            f"{self.my_id:>03d}",
+            self.issued.strftime("%y %b %d"),
             self.status,
             str(self.priority),
             ' '.join(self.tags),
-            len(msg) > 50 and msg[:47] + "..." or msg
+            len(msg) > self._MAX_MSG_L and msg[:(self._MAX_MSG_L - 3)] + "..." or msg
         ]
 
     def __gt__(self, other) -> bool:
@@ -297,7 +353,8 @@ class Issue(object):
         print("-" * 70)
         print(
             f"Status: {self.status}\nDate:   {self.issued.strftime('%a %b %d %H:%M %Y')}\n"
-            f"Tags: {' '.join(self.tags)}\n{self.msg}"
+            f"Tags: {' '.join(self.tags)}\n{self.msg}\n"
+            f"Parent: {self.parent}\nChildren: {','.join(self.children)}"
         )
         if self.closed_sha:
             print("-" * 70)
