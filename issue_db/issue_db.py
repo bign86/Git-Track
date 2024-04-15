@@ -354,7 +354,7 @@ class Issue(object):
         print(
             f"Status: {self.status}\nDate:   {self.issued.strftime('%a %b %d %H:%M %Y')}\n"
             f"Tags: {' '.join(self.tags)}\n{self.msg}\n"
-            f"Parent: {self.parent}\nChildren: {','.join(self.children)}"
+            f"Parent: {self.parent}\nChildren: {','.join(map(str, self.children))}"
         )
         if self.closed_sha:
             print("-" * 70)

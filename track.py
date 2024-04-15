@@ -79,7 +79,8 @@ if __name__ == "__main__":
         ISSUES.search(ns)
     elif ns.func == 'tree':
         draw_tree(ISSUES.issue_db, ns.id)
+    elif ns.version:
+        print(f'Git-Track: {VERSION}')
     else:
-        if ns.version:
-            print(f'Git-Track: {VERSION}')
+        parser.print_help()
 
