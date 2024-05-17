@@ -154,6 +154,10 @@ class IssueDB(object):
         issue = self.issue_db[issue_id]
         for child in issue.children:
             self.issue_db[child].parent = issue.parent
+        if issue.parent != 0:
+            _ = self.issue_db[issue.parent] \
+                .children \
+                .remove[issue_id]
 
         del self.issue_db[issue_id]
         self._repickle()
@@ -260,9 +264,9 @@ class IssueDB(object):
     def _edit_tag(self, issue_id, op: str, tag: str) -> None:
         """ Change the message of an existing issue. """
         if op == '+':
-            self.issue_db[issue_id] \
-                .tags \
-                .append(tag)
+            tags = set(self.issue_db[issue_id].tags)
+            tags.add(tag)
+            self.issue_db[issue_id].tags = sorted(tags)
         elif op == '-':
             self.issue_db[issue_id] \
                 .tags \

@@ -23,7 +23,7 @@ if __name__ == "__main__":
             if not hasattr(issue, 'children'):
                 issue.children = set()
             else:
-                issue.children = set(issue.children)
+                issue.children = sorted(set(issue.children))
             if not hasattr(issue, 'is_open'):
                 issue.is_open = True if issue.status == 'open' else False
     with open(ISSUE_FILE, 'wb') as issues:
